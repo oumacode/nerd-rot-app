@@ -4,53 +4,14 @@ import {
   StyleSheet, 
   Text, 
   View, 
-  TextInput, 
-  Platform, 
   SafeAreaView, 
-  TouchableOpacity, 
-  Keyboard, 
-  ActivityIndicator,
-  ScrollView,
-  KeyboardAvoidingView
+  TouchableOpacity
 } from 'react-native';
-import { GoogleGenerativeAI } from '@google/generative-ai';
-
-// 1. Ensure your .env has EXPO_PUBLIC_GEMINI_API_KEY
-const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
-
-const SYSTEM_PROMPT = `
-### ROLE
-You are a precision discovery engine for "nerd.".
-
-### CONSTRAINTS
-- **Direct Answer**: Provide ONLY the direct, literal answer. No sentences, no punctuation, max 3 words.
-- **Rabbit Holes**: Provide a dynamic list of 2 to 3 follow-up questions.
-- **Rabbit Hole Length**: Keep each question extremely short.
-- **Tone**: Clinical, raw, and high-signal.
-
-### OUTPUT SCHEMA
-Return ONLY valid JSON:
-{
-  "answer": "one or two word answer",
-  "rabbit_holes": ["very short q1", "very short q2", "very short q3"]
-}
-`;
-
-function parseResponseText(text) {
-  let raw = (text || '').trim();
-  // Remove markdown code fences if Gemini adds them
-  raw = raw.replace(/```json|```/g, "").trim();
-  
-  try {
-    const parsed = JSON.parse(raw);
-    return {
-      answer: String(parsed.answer || '').toLowerCase().replace(/[.,/#!$%^&*;:{}=\-_`~()]/g,""),
-      rabbit_holes: Array.isArray(parsed.rabbit_holes) ? parsed.rabbit_holes : [],
-    };
-  } catch (_) {
-    return { answer: text.split('\n')[0], rabbit_holes: [] };
-  }
-}
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import NerdRotScreen from './src/screens/NerdRotScreen';
+import JournalScreen from './src/screens/JournalScreen';
+import { askNerdRot } from './src/api/gemini';
+import { useJournal } from './src/hooks/useJournal';
 
 export default function App() {
   const [question, setQuestion] = useState('');
@@ -58,6 +19,8 @@ export default function App() {
   const [rabbitHoles, setRabbitHoles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [view, setView] = useState('main'); // 'main' | 'journal'
+  const { journal, addEntry, deleteEntry } = useJournal();
 
   const askWithQuestion = async (q) => {
     const trimmed = (q || '').trim();
@@ -68,22 +31,12 @@ export default function App() {
     setAnswer('');
     setRabbitHoles([]);
     setQuestion(trimmed);
-    Keyboard.dismiss();
 
     try {
-      const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-      // Switch to Flash-Lite for better free tier limits
-      const model = genAI.getGenerativeModel({
-        model: 'gemini-2.5-flash-lite', 
-        systemInstruction: SYSTEM_PROMPT,
-      });
-
-      const result = await model.generateContent(trimmed);
-      const responseText = result.response.text();
-      const parsed = parseResponseText(responseText);
-      
+      const parsed = await askNerdRot(trimmed);
       setAnswer(parsed.answer);
       setRabbitHoles(parsed.rabbit_holes);
+      addEntry(trimmed, parsed.answer);
     } catch (e) {
       if (e.message?.includes('429')) {
         setErrorMsg('nerd brain resting. try in 60s.');
@@ -97,101 +50,53 @@ export default function App() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar style="light" />
-      
-      <View style={styles.header}>
-        <Text style={styles.title}>nerdrot.</Text>
-      </View>
-
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
-        style={{ flex: 1 }}
-      >
-        <ScrollView contentContainerStyle={styles.content}>
-          <View style={styles.card}>
-            {loading ? (
-              <ActivityIndicator size="large" color="#CCFF00" />
-            ) : errorMsg ? (
-              <Text style={styles.errorText}>{errorMsg}</Text>
-            ) : answer ? (
-              <View style={{ width: '100%' }}>
-                <Text style={styles.answerText}>{answer}</Text>
-                
-                <View style={styles.divider} />
-                
-                <Text style={styles.subLabel}>dig deeper</Text>
-                <View style={styles.pillContainer}>
-                  {rabbitHoles.map((hole, i) => (
-                    <TouchableOpacity 
-                      key={i} 
-                      style={styles.pill} 
-                      onPress={() => askWithQuestion(hole)}
-                    >
-                      <Text style={styles.pillText}>{hole}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-            ) : (
-              <Text style={styles.welcomeText}>feed the rot.</Text>
-            )}
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaView style={styles.container}>
+        <StatusBar style="light" />
+        
+        <View style={styles.header}>
+          <View style={styles.headerRow}>
+            <Text style={styles.title}>nerdrot.</Text>
+            <TouchableOpacity
+              style={[styles.tab, view === 'main' && styles.tabActive]}
+              onPress={() => setView('main')}
+            >
+              <Text style={[styles.tabText, view === 'main' && styles.tabTextActive]}>Rot</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.tab, view === 'journal' && styles.tabActive]}
+              onPress={() => setView('journal')}
+            >
+              <Text style={[styles.tabText, view === 'journal' && styles.tabTextActive]}>Journal</Text>
+            </TouchableOpacity>
           </View>
-        </ScrollView>
-
-        <View style={styles.inputArea}>
-          <TextInput
-            style={styles.input}
-            placeholder="ask something obscure..."
-            placeholderTextColor="#444"
-            value={question}
-            onChangeText={setQuestion}
-            onSubmitEditing={() => askWithQuestion(question)}
-            editable={!loading}
-          />
         </View>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+
+        {view === 'journal' ? (
+          <JournalScreen journal={journal} onDelete={deleteEntry} />
+        ) : (
+          <NerdRotScreen
+            question={question}
+            onChangeQuestion={setQuestion}
+            answer={answer}
+            rabbitHoles={rabbitHoles}
+            loading={loading}
+            errorMsg={errorMsg}
+            onAsk={askWithQuestion}
+          />
+        )}
+      </SafeAreaView>
+    </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000' },
   header: { padding: 20, paddingTop: 40 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' },
   title: { color: '#fff', fontSize: 32, fontWeight: '900', letterSpacing: -1.5 },
-  content: { flexGrow: 1, justifyContent: 'center', padding: 20 },
-  card: { 
-    backgroundColor: '#000', 
-    borderRadius: 24, 
-    padding: 30, 
-    alignItems: 'center',
-    minHeight: 300,
-    justifyContent: 'center'
-  },
-  answerText: { 
-    color: '#fff', 
-    fontSize: 56, 
-    fontWeight: '900', 
-    textAlign: 'center',
-    letterSpacing: -2,
-    lineHeight: 60
-  },
-  welcomeText: { color: '#CCFF00', fontSize: 24, fontWeight: '700' },
-  errorText: { color: '#ff4444', fontSize: 16, textAlign: 'center' },
-  divider: { height: 1, backgroundColor: '#111', marginVertical: 30, width: '100%' },
-  subLabel: { color: '#444', fontSize: 12, fontWeight: '800', textTransform: 'uppercase', marginBottom: 15, textAlign: 'center' },
-  pillContainer: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 10 },
-  pill: { backgroundColor: '#111', paddingVertical: 10, paddingHorizontal: 16, borderRadius: 100, borderWidth: 1, borderColor: '#222' },
-  pillText: { color: '#CCFF00', fontSize: 14, fontWeight: '600' },
-  inputArea: { padding: 20, paddingBottom: 40 },
-  input: { 
-    backgroundColor: '#111', 
-    color: '#fff', 
-    borderRadius: 16, 
-    padding: 18, 
-    fontSize: 18, 
-    fontWeight: '600',
-    borderWidth: 1,
-    borderColor: '#222'
-  }
+  tab: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20 },
+  tabActive: { backgroundColor: '#1a1a1a' },
+  tabText: { color: '#555', fontSize: 14, fontWeight: '700' },
+  tabTextActive: { color: '#CCFF00' },
 });

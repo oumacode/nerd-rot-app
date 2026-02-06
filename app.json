@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "nerd-rot-app",
-    "slug": "nerd-rot-app",
+    "name": "nerdrot.",
+    "slug": "nerdrot.",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
