@@ -42,7 +42,7 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: '#151515',
   },
-  answer: { color: '#CCFF00', fontSize: 20, fontWeight: '800', marginBottom: 4 },
+  answer: { color: '#FFF', fontSize: 20, fontWeight: '800', marginBottom: 4 },
   question: { color: '#777', fontSize: 13 },
   deleteAction: {
     backgroundColor: '#FF4B4B',

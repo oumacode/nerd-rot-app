@@ -307,7 +307,7 @@ const styles = StyleSheet.create({
     minHeight: 140,
   },
   topicName: {
-    color: '#CCFF00',
+    color: '#FFF',
     fontSize: 20,
     fontWeight: '800',
     marginBottom: 8,

@@ -14,7 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import NerdRotScreen from './src/screens/NerdRotScreen';
 import JournalScreen from './src/screens/JournalScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
-import { askNerdRot } from './src/api/gemini';
+import { askNerdRot, categorizeEntry } from './src/api/gemini';
 import { useJournal } from './src/hooks/useJournal';
 
 export default function App() {
@@ -24,6 +24,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [view, setView] = useState('main'); // 'main' | 'journal' | 'profile'
+  const [saved, setSaved] = useState(false);
   const { journal, addEntry, deleteEntry } = useJournal();
 
   const handleTabPress = async (nextView) => {
@@ -45,12 +46,12 @@ export default function App() {
     setAnswer('');
     setRabbitHoles([]);
     setQuestion(trimmed);
+    setSaved(false);
 
     try {
       const parsed = await askNerdRot(trimmed);
       setAnswer(parsed.answer);
       setRabbitHoles(parsed.rabbit_holes);
-      addEntry(trimmed, parsed.answer, parsed.topic);
     } catch (e) {
       if (e.message?.includes('429')) {
         setErrorMsg('nerd brain resting. try in 60s.');
@@ -63,16 +64,36 @@ export default function App() {
     }
   };
 
+  const handleSave = async () => {
+    if (!question || !answer || saved) return;
+    
+    try {
+      const topic = await categorizeEntry(question, answer);
+      addEntry(question, answer, topic);
+      setSaved(true);
+      
+      try {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } catch {
+        // haptics are best-effort only
+      }
+    } catch (e) {
+      console.error('Failed to categorize entry:', e);
+      addEntry(question, answer, 'Misc');
+      setSaved(true);
+    }
+  };
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaView style={styles.container}>
         <StatusBar style="light" />
         
-        <View style={styles.header}>
-          <View style={styles.headerRow}>
-            <Text style={styles.title}>nerdrot.</Text>
+        {view === 'main' && (
+          <View style={styles.minimalHeader}>
+            <Text style={styles.title}>nerdrot</Text>
           </View>
-        </View>
+        )}
 
         {view === 'journal' ? (
           <JournalScreen journal={journal} onDelete={deleteEntry} />
@@ -87,23 +108,25 @@ export default function App() {
             loading={loading}
             errorMsg={errorMsg}
             onAsk={askWithQuestion}
+            saved={saved}
+            onSave={handleSave}
           />
         )}
 
         <View style={styles.dockWrapper} pointerEvents="box-none">
-          <BlurView intensity={40} tint="dark" style={styles.dock}>
+          <BlurView intensity={60} tint="dark" style={styles.dock}>
             <TouchableOpacity
               style={[
                 styles.dockIconButton,
                 view === 'main' && styles.dockIconButtonActive,
               ]}
               onPress={() => handleTabPress('main')}
-              activeOpacity={0.8}
+              activeOpacity={0.7}
             >
               <Ionicons
-                name="sparkles-outline"
-                size={24}
-                color={view === 'main' ? '#CCFF00' : '#777'}
+                name={view === 'main' ? 'sparkles' : 'sparkles-outline'}
+                size={22}
+                color={view === 'main' ? '#CCFF00' : '#666'}
               />
             </TouchableOpacity>
 
@@ -113,12 +136,12 @@ export default function App() {
                 view === 'journal' && styles.dockIconButtonActive,
               ]}
               onPress={() => handleTabPress('journal')}
-              activeOpacity={0.8}
+              activeOpacity={0.7}
             >
               <Ionicons
-                name="library-outline"
-                size={24}
-                color={view === 'journal' ? '#CCFF00' : '#777'}
+                name={view === 'journal' ? 'library' : 'library-outline'}
+                size={22}
+                color={view === 'journal' ? '#CCFF00' : '#666'}
               />
             </TouchableOpacity>
 
@@ -128,12 +151,12 @@ export default function App() {
                 view === 'profile' && styles.dockIconButtonActive,
               ]}
               onPress={() => handleTabPress('profile')}
-              activeOpacity={0.8}
+              activeOpacity={0.7}
             >
               <Ionicons
-                name="person-circle-outline"
-                size={26}
-                color={view === 'profile' ? '#CCFF00' : '#777'}
+                name={view === 'profile' ? 'person-circle' : 'person-circle-outline'}
+                size={24}
+                color={view === 'profile' ? '#CCFF00' : '#666'}
               />
             </TouchableOpacity>
           </BlurView>
@@ -145,41 +168,54 @@ export default function App() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000' },
-  header: { padding: 20, paddingTop: 40 },
-  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' },
-  title: { color: '#fff', fontSize: 32, fontWeight: '900', letterSpacing: -1.5 },
-  tab: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20 },
-  tabActive: { backgroundColor: '#1a1a1a' },
-  tabText: { color: '#555', fontSize: 14, fontWeight: '700' },
-  tabTextActive: { color: '#CCFF00' },
-    dockWrapper: {
-      position: 'absolute', // Ensures it floats OVER the screens
-      bottom: 34,           // Offset from the bottom edge (Safe Area consideration)
-      left: 0,
-      right: 0,
-      alignItems: 'center',
-      paddingHorizontal: 20,
-      zIndex: 1000,         // Ensure it stays on top of all screen content
-    },
-    dock: {
-      width: '100%',
-      maxWidth: 380,        // Slightly wider for better reachability
-      flexDirection: 'row',
-      justifyContent: 'space-around', // Better spacing for three icons
-      alignItems: 'center',
-      paddingVertical: 14,
-      paddingHorizontal: 10,
-      backgroundColor: 'rgba(0,0,0,0.7)', // Semi-transparent for BlurView effect
-      borderRadius: 24,     // Perfectly pill-shaped
-      borderWidth: 1,
-      borderColor: 'rgba(255,255,255,0.1)', // Subtle "glass" border
-      overflow: 'hidden',  
-    },
-    dockIconButton: {
-      padding: 10,          // Larger touch target
-      borderRadius: 25,
-    },
-    dockIconButtonActive: {
-      backgroundColor: 'rgba(204, 255, 0, 0.15)', // Subtle neon glow background
-    },
-  });
+  minimalHeader: {
+    paddingTop: 12,
+    paddingBottom: 8,
+    paddingHorizontal: 24,
+    alignItems: 'flex-start',
+  },
+  title: {
+    color: '#CCFF00',
+    fontSize: 20,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+  },
+  dockWrapper: {
+    position: 'absolute',
+    bottom: 28,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    zIndex: 1000,
+  },
+  dock: {
+    width: '100%',
+    maxWidth: 320,
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: 'rgba(204, 255, 0, 0.2)',
+    overflow: 'hidden',
+    shadowColor: '#CCFF00',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  dockIconButton: {
+    padding: 12,
+    borderRadius: 20,
+    minWidth: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dockIconButtonActive: {
+    backgroundColor: 'rgba(204, 255, 0, 0.12)',
+  },
+});

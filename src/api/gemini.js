@@ -60,3 +60,31 @@ export async function askNerdRot(question) {
   return parseResponseText(responseText);
 }
 
+const TOPIC_PROMPT = `
+Categorize this question and answer pair into a single-word topic.
+Examples: Tech, Science, History, Philosophy, Nature, Math, Art, Culture, Language, Medicine, Physics, Chemistry, Biology, Astronomy, Psychology, Economics, Politics, Literature, Music, Sports, Food, Geography, Religion, Mythology, Engineering, Computer, AI, Space, Earth, Human, Animal, Plant, Material, Energy, Time, Space, Logic, Theory, Practice, Ancient, Modern, Future, Abstract, Concrete.
+
+Return ONLY a single word, no punctuation, capitalized first letter.
+`;
+
+export async function categorizeEntry(question, answer) {
+  try {
+    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-flash-latest',
+      systemInstruction: TOPIC_PROMPT,
+    });
+
+    const prompt = `Question: ${question}\nAnswer: ${answer}\n\nTopic:`;
+    const result = await model.generateContent(prompt);
+    const topic = result.response.text().trim().split(/\s+/)[0];
+    
+    // Clean and capitalize first letter
+    const cleaned = topic.replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, '');
+    return cleaned.charAt(0).toUpperCase() + cleaned.slice(1).toLowerCase();
+  } catch (e) {
+    console.error('Topic categorization failed:', e);
+    return 'Misc';
+  }
+}
+
