@@ -8,7 +8,9 @@ import {
   Platform,
   ActivityIndicator,
   StyleSheet,
+  TouchableOpacity,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function NerdRotScreen({
   question,
@@ -18,6 +20,8 @@ export default function NerdRotScreen({
   loading,
   errorMsg,
   onAsk,
+  saved,
+  onSave,
 }) {
   return (
     <KeyboardAvoidingView
@@ -33,6 +37,20 @@ export default function NerdRotScreen({
           ) : answer ? (
             <View style={{ width: '100%' }}>
               <Text style={styles.answerText}>{answer}</Text>
+
+              <TouchableOpacity
+                style={[styles.saveButton, saved && styles.saveButtonSaved]}
+                onPress={onSave}
+                disabled={saved}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name={saved ? 'bookmark' : 'bookmark-outline'}
+                  size={16}
+                  color="#CCFF00"
+                  style={{ opacity: saved ? 0.5 : 1 }}
+                />
+              </TouchableOpacity>
 
               <View style={styles.divider} />
 
@@ -120,11 +138,36 @@ const styles = StyleSheet.create({
     borderColor: '#222',
   },
   pillText: { color: '#CCFF00', fontSize: 14, fontWeight: '600' },
-  inputArea: { padding: 20, paddingBottom: 40 },
+  saveButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'center',
+    marginTop: 20,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 100,
+    borderWidth: 1,
+    borderColor: '#CCFF00',
+    gap: 6,
+  },
+  saveButtonSaved: {
+    opacity: 0.5,
+  },
+  saveButtonText: {
+    color: '#CCFF00',
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'lowercase',
+  },
+  saveButtonTextSaved: {
+    opacity: 0.7,
+  },
+  inputArea: { padding: 20, marginBottom: 70 },
   input: {
     backgroundColor: '#111',
     color: '#fff',
-    borderRadius: 16,
+    borderRadius: 24,
     padding: 18,
     fontSize: 18,
     fontWeight: '600',

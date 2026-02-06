@@ -11,8 +11,13 @@ export function useJournal() {
     })();
   }, []);
 
-  const addEntry = (question, answer) => {
-    const entry = { question, answer, timestamp: Date.now() };
+  const addEntry = (question, answer, topic) => {
+    const entry = { 
+      question, 
+      answer, 
+      timestamp: Date.now(),
+      topic: topic || 'Misc'
+    };
     setJournal((prev) => {
       const next = [entry, ...prev];
       saveJournal(next);

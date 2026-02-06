@@ -8,8 +8,12 @@ import {
   TouchableOpacity
 } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { BlurView } from 'expo-blur';
+import * as Haptics from 'expo-haptics';
+import { Ionicons } from '@expo/vector-icons';
 import NerdRotScreen from './src/screens/NerdRotScreen';
 import JournalScreen from './src/screens/JournalScreen';
+import ProfileScreen from './src/screens/ProfileScreen';
 import { askNerdRot } from './src/api/gemini';
 import { useJournal } from './src/hooks/useJournal';
 
@@ -19,8 +23,18 @@ export default function App() {
   const [rabbitHoles, setRabbitHoles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
-  const [view, setView] = useState('main'); // 'main' | 'journal'
+  const [view, setView] = useState('main'); // 'main' | 'journal' | 'profile'
   const { journal, addEntry, deleteEntry } = useJournal();
+
+  const handleTabPress = async (nextView) => {
+    if (view === nextView) return;
+    setView(nextView);
+    try {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch {
+      // haptics are best-effort only
+    }
+  };
 
   const askWithQuestion = async (q) => {
     const trimmed = (q || '').trim();
@@ -36,7 +50,7 @@ export default function App() {
       const parsed = await askNerdRot(trimmed);
       setAnswer(parsed.answer);
       setRabbitHoles(parsed.rabbit_holes);
-      addEntry(trimmed, parsed.answer);
+      addEntry(trimmed, parsed.answer, parsed.topic);
     } catch (e) {
       if (e.message?.includes('429')) {
         setErrorMsg('nerd brain resting. try in 60s.');
@@ -57,23 +71,13 @@ export default function App() {
         <View style={styles.header}>
           <View style={styles.headerRow}>
             <Text style={styles.title}>nerdrot.</Text>
-            <TouchableOpacity
-              style={[styles.tab, view === 'main' && styles.tabActive]}
-              onPress={() => setView('main')}
-            >
-              <Text style={[styles.tabText, view === 'main' && styles.tabTextActive]}>Rot</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.tab, view === 'journal' && styles.tabActive]}
-              onPress={() => setView('journal')}
-            >
-              <Text style={[styles.tabText, view === 'journal' && styles.tabTextActive]}>Journal</Text>
-            </TouchableOpacity>
           </View>
         </View>
 
         {view === 'journal' ? (
           <JournalScreen journal={journal} onDelete={deleteEntry} />
+        ) : view === 'profile' ? (
+          <ProfileScreen />
         ) : (
           <NerdRotScreen
             question={question}
@@ -85,6 +89,55 @@ export default function App() {
             onAsk={askWithQuestion}
           />
         )}
+
+        <View style={styles.dockWrapper} pointerEvents="box-none">
+          <BlurView intensity={40} tint="dark" style={styles.dock}>
+            <TouchableOpacity
+              style={[
+                styles.dockIconButton,
+                view === 'main' && styles.dockIconButtonActive,
+              ]}
+              onPress={() => handleTabPress('main')}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name="sparkles-outline"
+                size={24}
+                color={view === 'main' ? '#CCFF00' : '#777'}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.dockIconButton,
+                view === 'journal' && styles.dockIconButtonActive,
+              ]}
+              onPress={() => handleTabPress('journal')}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name="library-outline"
+                size={24}
+                color={view === 'journal' ? '#CCFF00' : '#777'}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.dockIconButton,
+                view === 'profile' && styles.dockIconButtonActive,
+              ]}
+              onPress={() => handleTabPress('profile')}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name="person-circle-outline"
+                size={26}
+                color={view === 'profile' ? '#CCFF00' : '#777'}
+              />
+            </TouchableOpacity>
+          </BlurView>
+        </View>
       </SafeAreaView>
     </GestureHandlerRootView>
   );
@@ -99,4 +152,34 @@ const styles = StyleSheet.create({
   tabActive: { backgroundColor: '#1a1a1a' },
   tabText: { color: '#555', fontSize: 14, fontWeight: '700' },
   tabTextActive: { color: '#CCFF00' },
-});
+    dockWrapper: {
+      position: 'absolute', // Ensures it floats OVER the screens
+      bottom: 34,           // Offset from the bottom edge (Safe Area consideration)
+      left: 0,
+      right: 0,
+      alignItems: 'center',
+      paddingHorizontal: 20,
+      zIndex: 1000,         // Ensure it stays on top of all screen content
+    },
+    dock: {
+      width: '100%',
+      maxWidth: 380,        // Slightly wider for better reachability
+      flexDirection: 'row',
+      justifyContent: 'space-around', // Better spacing for three icons
+      alignItems: 'center',
+      paddingVertical: 14,
+      paddingHorizontal: 10,
+      backgroundColor: 'rgba(0,0,0,0.7)', // Semi-transparent for BlurView effect
+      borderRadius: 24,     // Perfectly pill-shaped
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.1)', // Subtle "glass" border
+      overflow: 'hidden',  
+    },
+    dockIconButton: {
+      padding: 10,          // Larger touch target
+      borderRadius: 25,
+    },
+    dockIconButtonActive: {
+      backgroundColor: 'rgba(204, 255, 0, 0.15)', // Subtle neon glow background
+    },
+  });

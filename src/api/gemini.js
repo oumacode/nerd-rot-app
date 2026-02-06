@@ -17,7 +17,8 @@ You are a precision discovery engine for "nerd.".
 Return ONLY valid JSON:
 {
   "answer": "one or two word answer",
-  "rabbit_holes": ["very short q1", "very short q2", "very short q3"]
+  "rabbit_holes": ["very short q1", "very short q2", "very short q3"],
+  "topic": "single word category like Tech, Science, History, Philosophy, Nature, Math, Art, etc."
 }
 `;
 
@@ -28,6 +29,10 @@ function parseResponseText(text) {
 
   try {
     const parsed = JSON.parse(raw);
+    const topic = parsed.topic 
+      ? String(parsed.topic).charAt(0).toUpperCase() + String(parsed.topic).slice(1).toLowerCase()
+      : 'Misc';
+    
     return {
       answer: String(parsed.answer || '')
         .toLowerCase()
@@ -35,9 +40,10 @@ function parseResponseText(text) {
       rabbit_holes: Array.isArray(parsed.rabbit_holes)
         ? parsed.rabbit_holes
         : [],
+      topic: topic,
     };
   } catch (_) {
-    return { answer: text.split('\n')[0], rabbit_holes: [] };
+    return { answer: text.split('\n')[0], rabbit_holes: [], topic: 'Misc' };
   }
 }
 
